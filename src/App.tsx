@@ -4,16 +4,51 @@
  */
 
 import React, { useState } from 'react';
-import { Search, Stethoscope, AlertTriangle, Settings, FileText, Zap, Wrench, Activity, Loader2, ChevronRight, Info } from 'lucide-react';
+import { Search, Stethoscope, AlertTriangle, Settings, FileText, Zap, Wrench, Activity, Loader2, ChevronRight, Info, X, Plus, Trash2, LayoutGrid, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { getBiomedicalGuidance } from './services/gemini.ts';
+
+interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  subCategories: string[];
+}
+
+interface Ad {
+  id: string;
+  text: string;
+  color: string;
+}
+
+const AD_COLORS = [
+  'bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-orange-500', 'bg-rose-500', 'bg-indigo-500'
+];
 
 export default function App() {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Settings State
+  const [showSettings, setShowSettings] = useState(false);
+  const [ads, setAds] = useState<Ad[]>([
+    { id: '1', text: 'تحديث جديد: بروتوكولات أجهزة التنفس الصناعي 2024', color: 'bg-blue-500' },
+    { id: '2', text: 'دورة تدريبية قادمة في صيانة أجهزة الأشعة المقطعية', color: 'bg-emerald-500' },
+    { id: '3', text: 'تنبيه: تحديث أمني هام لأجهزة مراقبة المريض', color: 'bg-rose-500' },
+  ]);
+  const [categories, setCategories] = useState<Category[]>([
+    { id: '1', name: 'أجهزة العناية المركزة', icon: 'Activity', subCategories: ['أجهزة التنفس', 'مراقبة المريض'] },
+    { id: '2', name: 'أجهزة الأشعة', icon: 'Zap', subCategories: ['X-Ray', 'CT Scan'] },
+  ]);
+
+  // Form States for Settings
+  const [newAdText, setNewAdText] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newSubName, setNewSubName] = useState('');
+  const [activeCatId, setActiveCatId] = useState<string | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +69,69 @@ export default function App() {
     }
   };
 
+  const addAd = () => {
+    if (!newAdText.trim()) return;
+    const newAd: Ad = {
+      id: Date.now().toString(),
+      text: newAdText,
+      color: AD_COLORS[Math.floor(Math.random() * AD_COLORS.length)]
+    };
+    setAds([...ads, newAd]);
+    setNewAdText('');
+  };
+
+  const deleteAd = (id: string) => {
+    setAds(ads.filter(ad => ad.id !== id));
+  };
+
+  const addCategory = () => {
+    if (!newCatName.trim()) return;
+    const newCat: Category = {
+      id: Date.now().toString(),
+      name: newCatName,
+      icon: 'LayoutGrid',
+      subCategories: []
+    };
+    setCategories([...categories, newCat]);
+    setNewCatName('');
+  };
+
+  const deleteCategory = (id: string) => {
+    setCategories(categories.filter(cat => cat.id !== id));
+  };
+
+  const addSubCategory = (catId: string) => {
+    if (!newSubName.trim()) return;
+    setCategories(categories.map(cat => 
+      cat.id === catId ? { ...cat, subCategories: [...cat.subCategories, newSubName] } : cat
+    ));
+    setNewSubName('');
+  };
+
+  const deleteSubCategory = (catId: string, subName: string) => {
+    setCategories(categories.map(cat => 
+      cat.id === catId ? { ...cat, subCategories: cat.subCategories.filter(s => s !== subName) } : cat
+    ));
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100" dir="rtl">
+      {/* Ads Ticker */}
+      <div className="bg-slate-900 overflow-hidden py-2 border-b border-slate-800">
+        <motion.div 
+          className="flex whitespace-nowrap gap-8"
+          animate={{ x: [0, -1000] }}
+          transition={{ repeat: Infinity, duration: 30, ease: "linear" }}
+        >
+          {[...ads, ...ads].map((ad, idx) => (
+            <div key={`${ad.id}-${idx}`} className={`${ad.color} text-white px-4 py-1 rounded-lg font-bold text-sm shadow-lg flex items-center gap-2`}>
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              {ad.text}
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -53,7 +149,10 @@ export default function App() {
             <a href="#" className="hover:text-blue-600 transition-colors">سجل الصيانة</a>
             <a href="#" className="hover:text-blue-600 transition-colors">المخزون</a>
           </div>
-          <button className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+          >
             <Settings size={20} />
           </button>
         </div>
@@ -72,7 +171,7 @@ export default function App() {
               أدخل اسم الجهاز الطبي أو كود الخطأ للحصول على تشخيص دقيق، خطوات صيانة تصحيحية، وبروتوكولات PPM المعتمدة.
             </p>
 
-            <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto group">
+            <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto group mb-8">
               <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
                 <Search size={20} />
               </div>
@@ -91,6 +190,39 @@ export default function App() {
                 {loading ? <Loader2 size={18} className="animate-spin" /> : 'تحليل'}
               </button>
             </form>
+
+            {/* Categories Display */}
+            <div className="flex flex-wrap justify-center gap-4 max-w-4xl mx-auto">
+              {categories.map((cat) => (
+                <div key={cat.id} className="group relative">
+                  <button 
+                    onClick={() => setQuery(cat.name)}
+                    className="flex flex-col items-center gap-2 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all min-w-[120px]"
+                  >
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+                      <LayoutGrid size={24} />
+                    </div>
+                    <span className="font-bold text-slate-700 text-sm">{cat.name}</span>
+                  </button>
+                  
+                  {/* Subcategories Dropdown (Simplified) */}
+                  {cat.subCategories.length > 0 && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all z-20 p-2">
+                      {cat.subCategories.map((sub, idx) => (
+                        <button 
+                          key={idx}
+                          onClick={() => setQuery(`${cat.name} - ${sub}`)}
+                          className="w-full text-right px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-blue-600 rounded-lg transition-colors flex items-center justify-between"
+                        >
+                          {sub}
+                          <ChevronRight size={14} className="rotate-180" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </motion.div>
         </section>
 
@@ -229,6 +361,180 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-4 py-8 border-t border-slate-200 text-center text-slate-400 text-sm">
         <p>© {new Date().getFullYear()} نظام خبير الهندسة الطبية الحيوية. جميع الحقوق محفوظة.</p>
       </footer>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="bg-slate-900 p-6 flex items-center justify-between text-white">
+                <div className="flex items-center gap-3">
+                  <Settings className="text-blue-400" />
+                  <h2 className="text-xl font-bold">إعدادات النظام</h2>
+                </div>
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-12">
+                {/* Ads Management */}
+                <section>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-orange-100 p-2 rounded-lg text-orange-600">
+                      <Zap size={20} />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-800">إدارة شريط الإعلانات</h3>
+                  </div>
+                  
+                  <div className="flex gap-2 mb-6">
+                    <input 
+                      type="text"
+                      value={newAdText}
+                      onChange={(e) => setNewAdText(e.target.value)}
+                      placeholder="نص الإعلان الجديد..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                    <button 
+                      onClick={addAd}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={18} />
+                      إضافة
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {ads.map(ad => (
+                      <div key={ad.id} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl group">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${ad.color}`} />
+                          <span className="text-slate-700 font-medium">{ad.text}</span>
+                        </div>
+                        <button 
+                          onClick={() => deleteAd(ad.id)}
+                          className="text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Categories Management */}
+                <section>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
+                      <LayoutGrid size={20} />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-800">إدارة أقسام الأجهزة</h3>
+                  </div>
+
+                  <div className="flex gap-2 mb-8">
+                    <input 
+                      type="text"
+                      value={newCatName}
+                      onChange={(e) => setNewCatName(e.target.value)}
+                      placeholder="اسم القسم الجديد..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500"
+                    />
+                    <button 
+                      onClick={addCategory}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={18} />
+                      إضافة قسم
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    {categories.map(cat => (
+                      <div key={cat.id} className="bg-slate-50 border border-slate-200 rounded-3xl p-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-white p-2 rounded-xl border border-slate-200 text-blue-600">
+                              <LayoutGrid size={20} />
+                            </div>
+                            <h4 className="font-bold text-slate-800">{cat.name}</h4>
+                          </div>
+                          <button 
+                            onClick={() => deleteCategory(cat.id)}
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+
+                        {/* Subcategories */}
+                        <div className="space-y-4">
+                          <div className="flex gap-2">
+                            <input 
+                              type="text"
+                              value={activeCatId === cat.id ? newSubName : ''}
+                              onChange={(e) => {
+                                setActiveCatId(cat.id);
+                                setNewSubName(e.target.value);
+                              }}
+                              placeholder="إضافة فرع جديد..."
+                              className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+                            />
+                            <button 
+                              onClick={() => addSubCategory(cat.id)}
+                              className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-900 transition-colors"
+                            >
+                              إضافة فرع
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {cat.subCategories.map((sub, idx) => (
+                              <div key={idx} className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-2 text-sm text-slate-600 group">
+                                <Layers size={14} className="text-slate-400" />
+                                {sub}
+                                <button 
+                                  onClick={() => deleteSubCategory(cat.id, sub)}
+                                  className="text-slate-300 hover:text-red-500 transition-colors"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <div className="bg-slate-50 p-6 border-t border-slate-200 flex justify-end">
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold hover:bg-slate-800 transition-all active:scale-95"
+                >
+                  حفظ وإغلاق
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
